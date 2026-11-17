@@ -8,21 +8,27 @@ ROOT=Path(os.getenv('MODEL_DIR','models'))
 def available(name):
     return all((ROOT/f'{name}.{ext}').is_file() or os.getenv(name.upper()+'_'+suffix) for ext,suffix in [('onnx','ONNX_URL'),('json','META_URL')])
 
-def fetch(name,ext,suffix,limit):
+def fetch(name,ext,suffix,limit,emit=lambda message:None):
     path=ROOT/f'{name}.{ext}'
-    if path.is_file(): return path
+    if path.is_file():
+        emit(f'Found local {ext.upper()} file')
+        return path
     url=os.getenv(name.upper()+'_'+suffix)
     if not url or not url.startswith('https://'): raise ValueError('Provide local model files or trusted HTTPS URLs')
     ROOT.mkdir(parents=True,exist_ok=True)
     fd,tmp=tempfile.mkstemp(dir=ROOT,suffix='.download'); os.close(fd)
     try:
+        emit(f'Downloading {ext.upper()} file')
         with urllib.request.urlopen(url,timeout=120) as r,open(tmp,'wb') as f:
-            total=0
+            total=0; last_report=0
             while chunk:=r.read(1024*1024):
                 total+=len(chunk)
                 if total>limit: raise ValueError('Download exceeds size limit')
                 f.write(chunk)
+                if total-last_report>=16*1024*1024:
+                    emit(f'Downloaded {total/2**20:.0f} MiB'); last_report=total
         os.replace(tmp,path)
+        emit(f'{ext.upper()} download complete')
     finally: Path(tmp).unlink(missing_ok=True)
     return path
 
@@ -32,28 +38,58 @@ def digest(path):
         while chunk:=f.read(1024*1024): h.update(chunk)
     return h.hexdigest()
 
-def load_model(name):
+def load_model(name,emit=lambda message:None):
     if name not in ['resnet18','vit_b_16']: raise ValueError('Unknown architecture')
-    meta=json.loads(fetch(name,'json','META_URL',1024*1024).read_text())
+    meta=json.loads(fetch(name,'json','META_URL',1024*1024,emit).read_text())
     threshold=float(meta['threshold'])
     if meta['architecture']!=name or not 0<=threshold<=1: raise ValueError('Invalid metadata')
+    emit('Metadata loaded; threshold validated')
     if meta['preprocessing']!='pil_bilinear_imagenet_v1': raise ValueError('Unsupported preprocessing')
-    path=fetch(name,'onnx','ONNX_URL',600*1024*1024)
+    path=fetch(name,'onnx','ONNX_URL',600*1024*1024,emit)
+    emit('Checking model SHA256')
     if digest(path)!=meta['sha256']: raise ValueError('Model and metadata hash mismatch')
     opt=ort.SessionOptions()
     opt.intra_op_num_threads=int(os.getenv('ORT_NUM_THREADS','2'))
     opt.inter_op_num_threads=1
     opt.graph_optimization_level=ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    emit('Initializing ONNX Runtime CPU session')
     session=ort.InferenceSession(str(path),sess_options=opt,providers=['CPUExecutionProvider'])
     inp=session.get_inputs()[0]
     if inp.shape!=[1,3,224,224] or inp.type!='tensor(float)': raise ValueError('Unexpected model input')
+    emit('Session initialized; input shape verified')
     return session,threshold,threading.Lock()
 
-def predict(image,bundle):
+def predict(image,bundle,emit=lambda message:None):
     session,threshold,lock=bundle
+    emit('Waiting for inference slot')
     with lock:
+        emit('Preprocessing image')
         start=time.perf_counter()
         x=preprocess(image)
+        emit('Running ONNX inference')
         score=float(sigmoid(session.run(None,{session.get_inputs()[0].name:x})[0]).item())
         ms=(time.perf_counter()-start)*1000
     return dict(prediction='Spoof' if score>=threshold else 'Genuine',spoof_score=score,threshold=threshold,processing_ms=ms)
+
+
+def public_error(exc):
+    import urllib.error
+    if isinstance(exc,urllib.error.HTTPError):
+        return f'Model download failed (HTTP {exc.code}). Check direct download links and repository access.'
+    if isinstance(exc,(TimeoutError,urllib.error.URLError)):
+        return 'Model download could not connect or timed out. Check the URL and retry.'
+    if isinstance(exc,PermissionError):
+        return 'Model cache directory is not writable. Check MODEL_DIR permissions.'
+    if isinstance(exc,json.JSONDecodeError):
+        return 'Metadata is not valid JSON. Use the direct /resolve/ download link, not a web page.'
+    if isinstance(exc,KeyError):
+        return 'Metadata fields are missing. Use the JSON created by export_onnx.py.'
+    known={
+        'Model and metadata hash mismatch':'Model hash mismatch. Replace both ONNX and JSON with the matching export; remove outdated cached files.',
+        'Unexpected model input':'Wrong ONNX input shape/type. Export the model using the provided script.',
+        'Invalid metadata':'Architecture or threshold metadata is invalid.',
+        'Unsupported preprocessing':'Unsupported preprocessing metadata. Re-export using the provided script.',
+        'Provide local model files or trusted HTTPS URLs':'Missing model files or HTTPS download links.',
+        'Download exceeds size limit':'Model download exceeds the configured size limit.'
+    }
+    return known.get(str(exc),f'{type(exc).__name__}: failed at the last recorded stage. Check model format and service memory.')

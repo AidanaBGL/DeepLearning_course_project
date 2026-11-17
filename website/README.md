@@ -1,3 +1,44 @@
+# FACE ANTISPOOF — cream UI + processing logs
+
+## Update your deployed site
+
+Replace app.py, inference.py, requirements.txt and .streamlit/config.toml with this package, then rebuild the deployment. Keep your existing ONNX/JSON model files and model environment variables. Do not use the old PyTorch app.py or inference.py.
+
+The interface has a warm milk-beige background, FACE ANTISPOOF branding at the top left, project links at the top right, an image/camera input and model dropdown on the left, an orange Отправить button below the input, and the result on the right. No sidebar navigation.
+
+Set these four optional environment variables to your REAL project URLs:
+
+```text
+GITHUB_URL=https://github.com/your-name/your-project
+HUGGINGFACE_URL=https://huggingface.co/your-name/your-model-repo
+PRESENTATION_URL=https://your-presentation-link
+PAPER_URL=https://your-paper-link
+```
+
+Missing navigation links are shown as disabled gray text; the package does not invent links.
+
+## What the logs show
+
+After Отправить, a live status panel shows: request received → model metadata → download progress in 16 MiB increments → hash verification → ONNX initialization → preprocessing → inference → completion. Cached model loads skip download/init stages. The expandable Processing log preserves the last request's progress in that browser session. Results persist across normal reruns but reset when the image, input source or model changes.
+
+Railway/hosting logs contain UTC-style server timestamps (host timezone), request ID, selected model, stages and exception class. The request ID is also displayed in the result/error. No image bytes, image names, signed URLs or authentication tokens are intentionally logged. Browser messages report specific causes such as HTTP errors, invalid JSON, hash mismatch and permissions instead of silently swallowing errors. Unexpected failures show the exception class and last completed stage; no full traceback with potentially sensitive URLs is displayed.
+
+If the process is killed for insufficient memory, Python cannot catch that termination. Look at host restart/OOM events. If downloading stalls, connection reads time out after 120 seconds; this is not a strict total transfer deadline.
+
+## Score vs confidence
+
+The prominent percentage is the real sigmoid spoof score, not a fabricated confidence estimate. The saved validation threshold is shown separately. Because thresholds differ from 50%, a genuine prediction can have a spoof score greater than 50% (e.g. ViT). Calibrated confidence is not implemented.
+
+## Dependency fixes
+
+PyArrow is pinned to 18.0.0 for NumPy 1.26.4 compatibility. Streamlit file watching is disabled. Docker installs only ONNX runtime dependencies, not torch. A rebuild is required after editing requirements.
+
+## Validation
+
+Python syntax, TOML/JSON parsing, callback wiring and existing preprocessing smoke tests were checked locally. Browser layout and actual model inference were not executed here: no deployed service or trained model files were supplied. Review the deployment after replacing files.
+
+---
+
 # FaceGuard — ONNX Runtime edition
 
 Railway-ready Streamlit demo for the existing ResNet18 and ViT-B/16 binary checkpoints. Deployment uses ONNX Runtime CPU, NumPy and Pillow — no PyTorch or torchvision. Export runs separately in your training environment.
