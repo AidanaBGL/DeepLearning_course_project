@@ -20,7 +20,20 @@ MODELS={
 def display_name(name):
     info=MODELS[name]; return f"{info['label']} · {info['dataset']}"
 
+# Settings from the user's matching ResNet18 ONNX export.
+# ResNet18 never reads or downloads a metadata JSON file.
+BUILTIN_META = {
+    'resnet18': {
+        'architecture': 'resnet18',
+        'threshold': 0.1945590376853943,
+        'preprocessing': 'pil_bilinear_imagenet_v1',
+        'sha256': 'f0968bce5cab45b568bc5655f56590efe4e9329000f23bc1ad22aa785f470fe6',
+    }
+}
+
 def available(name):
+    if name in BUILTIN_META:
+        return bool((ROOT/f'{name}.onnx').is_file() or os.getenv(name.upper()+'_ONNX_URL'))
     return all((ROOT/f'{name}.{ext}').is_file() or os.getenv(name.upper()+'_'+suffix) for ext,suffix in [('onnx','ONNX_URL'),('json','META_URL')])
 
 def fetch(name,ext,suffix,limit,emit=lambda message:None):
@@ -55,15 +68,22 @@ def digest(path):
 
 def load_model(name,emit=lambda message:None):
     if name not in MODELS: raise ValueError('Unknown architecture')
-    meta=json.loads(fetch(name,'json','META_URL',1024*1024,emit).read_text())
+    if name in BUILTIN_META:
+        meta = BUILTIN_META[name].copy()
+        emit('Using built-in ResNet18 settings; JSON not required')
+    else:
+        meta=json.loads(fetch(name,'json','META_URL',1024*1024,emit).read_text())
     threshold=float(meta['threshold'])
     # CelebA-Spoof JSONs have no model_id; their architecture is the id.
     if meta.get('model_id',meta['architecture'])!=name or not 0<=threshold<=1: raise ValueError('Invalid metadata')
     emit('Metadata loaded; threshold validated')
     if meta['preprocessing']!='pil_bilinear_imagenet_v1': raise ValueError('Unsupported preprocessing')
     path=fetch(name,'onnx','ONNX_URL',600*1024*1024,emit)
-    emit('Checking model SHA256')
-    if digest(path)!=meta['sha256']: raise ValueError('Model and metadata hash mismatch')
+    if name == 'resnet18':
+        emit('Checksum verification disabled for ResNet18')
+    else:
+        emit('Checking model SHA256')
+        if digest(path)!=meta['sha256']: raise ValueError('Model and metadata hash mismatch')
     opt=ort.SessionOptions()
     opt.intra_op_num_threads=int(os.getenv('ORT_NUM_THREADS','2'))
     opt.inter_op_num_threads=1
@@ -101,7 +121,7 @@ def public_error(exc):
     if isinstance(exc,KeyError):
         return 'Metadata fields are missing. Use the JSON created by export_onnx.py.'
     known={
-        'Model and metadata hash mismatch':'Model hash mismatch. Replace both ONNX and JSON with the matching export; remove outdated cached files.',
+        'Model and metadata hash mismatch':'ONNX checksum mismatch. ResNet18 must match the export configured in inference.py; replace any outdated cached ONNX. ViT requires its matching export JSON.',
         'Unexpected model input':'Wrong ONNX input shape/type. Export the model using the provided script.',
         'Invalid metadata':'Architecture or threshold metadata is invalid.',
         'Unsupported preprocessing':'Unsupported preprocessing metadata. Re-export using the provided script.',

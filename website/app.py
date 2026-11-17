@@ -147,8 +147,8 @@ with st.expander('Processing log',expanded=bool(st.session_state.error)):
     st.code('\n'.join(st.session_state.events) or 'No request yet. Choose an image and press Отправить.',language='text')
 with st.expander('Setup details'):
     st.write({n:('Configured — download/inference not yet verified' if available(n) else 'Not configured') for n in MODELS})
-    st.caption('Provide matching local .onnx + .json files or model URL variables. First inference may download weights and initialize ONNX Runtime. Subsequent requests reuse the session.')
-    st.code('\n'.join(f'{n.upper()}_{s}' for n in MODELS for s in ['ONNX_URL','META_URL']))
+    st.caption('ResNet18 (CelebA-Spoof) settings are built into the app: only its ONNX file or URL is required. Other models need matching local .onnx + .json files or model URL variables. First inference initializes ONNX Runtime; subsequent requests reuse the session.')
+    st.code('\n'.join(f'{n.upper()}_{s}' for n in MODELS for s in (['ONNX_URL'] if n=='resnet18' else ['ONNX_URL','META_URL'])))
     st.caption('Navigation links: GITHUB_URL, HUGGINGFACE_URL, PRESENTATION_URL, PAPER_URL. Missing links stay gray until configured.')
 with st.expander('Research results & limitations'):
     st.markdown('''| Model | AUC | APCER | BPCER | ACER |
