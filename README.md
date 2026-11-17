@@ -1,4 +1,4 @@
-<img width="3080" height="2112" alt="ResNet18_Training" src="https://github.com/user-attachments/assets/337fdbf1-aeea-4a09-a3c3-2495b0549370" /># Face Anti-Spoofing Detection
+# Face Anti-Spoofing Detection
 
 **Team:** Aidana, Diana, Temirlan  
 **Current stage:** Binary baselines trained and evaluated  
@@ -84,8 +84,7 @@ Because some archive parts were missing, only part of CelebA-Spoof was recovered
 
 ### Evaluation
 
-[Streamlit face anti-spoofing demo](assets/resnet-training.png)
-
+<img width="200" height="200" alt="ResNet18_Training" src="https://github.com/user-attachments/assets/337fdbf1-aeea-4a09-a3c3-2495b0549370" />
 
 | Model | AUC ↑ | EER ↓ | APCER ↓ | BPCER ↓ | ACER ↓ | Parameters |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
