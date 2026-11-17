@@ -45,12 +45,7 @@ These are our planned evaluation groups. CelebA-Spoof provides detailed spoof-ty
 For multiclass training, we need to match the recovered images with their original attack annotations and inspect class counts. The final mapping could include genuine, print, display, and other supported categories. Still-image displays and video replays must remain grouped if the annotations do not distinguish them. The website will only show predicted subtypes after a multiclass model has been trained and evaluated.
 
 ## Face Anti-Spoofing Project Report
-
-| Project material | Link / status |
-| --- | --- |
-| Presentation | To be added |
-| Project paper / report | To be added |
-| Streamlit website | To be added after testing |
+[ Presentation](https://canva.link/51ajxm1rksf7nk8) 
 
 ### Website demo
 
