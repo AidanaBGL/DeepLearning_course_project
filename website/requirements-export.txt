@@ -1,0 +1,3 @@
+-r requirements.txt
+onnx==1.17.0
+# Install matching torch + torchvision separately in the training environment.

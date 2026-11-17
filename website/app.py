@@ -19,7 +19,7 @@ st.markdown('<div class="eyebrow">COMPUTER VISION · RESEARCH DEMO</div>',unsafe
 st.title('FaceGuard — Anti-Spoofing Lab')
 st.caption('Aidana · Diana · Temirlan | Genuine faces, printed photos, and screen presentations')
 page=st.sidebar.radio('Explore',['Live demo','Model results','About the project'])
-st.sidebar.caption('Binary classification · CPU inference')
+st.sidebar.caption('Binary classification · ONNX Runtime CPU')
 
 @st.cache_resource(max_entries=1)
 def cached_model(name): return load_model(name)
@@ -29,8 +29,8 @@ if page=='Live demo':
     names=[n for n in ['resnet18','vit_b_16'] if available(n)]
     if not names:
         st.warning('Model setup required: add your trained checkpoint to enable predictions.')
-        st.code('models/resnet18.pt\nmodels/vit_b_16.pt  # optional')
-        st.caption('Deployment owner: alternatively set RESNET18_URL or VIT_B_16_URL to a trusted direct HTTPS checkpoint download.')
+        st.code('models/resnet18.onnx + models/resnet18.json\nmodels/vit_b_16.onnx + models/vit_b_16.json  # optional')
+        st.caption('Deployment owner: alternatively set RESNET18_ONNX_URL + RESNET18_META_URL (or VIT_B_16 equivalents) to a trusted direct HTTPS checkpoint download.')
     else:
         name=st.selectbox('Model',names,format_func=lambda x:{'resnet18':'ResNet18 · recommended baseline','vit_b_16':'ViT-B/16 · comparison model'}[x])
         left,right=st.columns([1.15,1],gap='large')
@@ -66,7 +66,7 @@ if page=='Live demo':
                     st.caption('Spoof is predicted when score ≥ threshold. A score is not a calibrated probability. Timing excludes model loading and network transfer.')
                     st.download_button('Download result JSON',json.dumps({'model':name,**result},indent=2),file_name='prediction.json',mime='application/json')
                 except Exception:
-                    st.error('Model could not be loaded or evaluated. Check that the configured file is a compatible best.pt checkpoint and that the service has enough memory.')
+                    st.error('Model could not be loaded or evaluated. Check that the configured file is a matching ONNX model and metadata JSON and that the service has enough memory.')
             else:
                 st.info('Choose an image and click Analyze image. Predictions are never simulated.')
         st.warning('Research prototype: processes the full frame without face detection. Images without a face can still receive a prediction. Webcam mode captures individual frames, not continuous video.')

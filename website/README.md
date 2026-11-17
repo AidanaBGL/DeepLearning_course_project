@@ -1,70 +1,108 @@
-# FaceGuard — Railway-ready Streamlit app
+# FaceGuard — ONNX Runtime edition
 
-Image upload, webcam snapshots, real CPU inference, model selection, test-results dashboard and JSON result download. Both architectures use the same full-image preprocessing as the training project. No fake predictions or automatically downloaded ImageNet classifiers.
+Railway-ready Streamlit demo for the existing ResNet18 and ViT-B/16 binary checkpoints. Deployment uses ONNX Runtime CPU, NumPy and Pillow — no PyTorch or torchvision. Export runs separately in your training environment.
 
-## 1. Add your trained model
+## 1. Export on the training machine
 
-Copy your existing checkpoint (not ImageNet weights):
+Copy export_onnx.py, preprocess.py, requirements.txt and requirements-export.txt to a working folder, or use this whole folder. Activate your environment with torch and torchvision already installed:
 
 ```bash
-cp /path/to/face_antispoof/runs/resnet18_bce/best.pt models/resnet18.pt
-# Optional:
-cp /path/to/face_antispoof/runs/vit_b_16_bce/best.pt models/vit_b_16.pt
+pip install -r requirements-export.txt
+python export_onnx.py --checkpoint /path/to/runs/resnet18_bce/best.pt --csv /path/to/data/manifests/val.csv --out models
+python export_onnx.py --checkpoint /path/to/runs/vit_b_16_bce/best.pt --csv /path/to/data/manifests/val.csv --out models
 ```
 
-Expected checkpoint dictionary: `state`, `threshold`, `architecture`. Older checkpoints without architecture are interpreted as ResNet18. Scores use saved validation thresholds, not 0.5. Checkpoints were not supplied with this package.
+CSV paths must point to readable images on this machine. By default, 64 validation images are selected with seed 42. To verify the complete validation set use `--samples 3903` (slower). Use validation rather than test for export troubleshooting.
 
-Alternatively configure `RESNET18_URL` and optionally `VIT_B_16_URL` with trusted direct HTTPS checkpoint download URLs. These are server-side environment variables, never browser inputs. Ordinary sharing-page URLs will not work: the response must be the .pt bytes. For private hosting use a signed direct URL; renew expired URLs before a fresh deployment. Do not put secrets into Git. Downloaded weights are cached on the service filesystem, which may reset on redeployment.
+If a separate export environment is needed, Python 3.11 with torch==2.5.1 and torchvision==0.20.1 is the reference dependency pair used in the previous Docker setup. Do not replace your training environment unnecessarily. This script explicitly selects the legacy ONNX exporter (`dynamo=False`, opset 17) and disables the fused MHA fast path for ViT compatibility.
 
-## 2. Run locally
+Outputs:
+
+```text
+models/
+  resnet18.onnx
+  resnet18.json
+  vit_b_16.onnx
+  vit_b_16.json
+```
+
+Each metadata JSON contains the architecture, ORIGINAL checkpoint threshold, preprocessing version, model SHA256 and parity-check results. Do not mix JSON and ONNX files from different exports. Hash mismatch stops inference.
+
+The exporter validates ONNX structure, compares Pillow/NumPy preprocessing against torchvision, compares PyTorch and ONNX sigmoid scores (absolute tolerance 1e-4), and checks predictions at the saved threshold. It only publishes the model pair after passing these checks. Passing 64 samples is a sample check, not proof of equivalence on all inputs. Exported graphs are float32 with fixed input [1,3,224,224] and logits output. No quantization is applied.
+
+## 2. Run the website locally
+
+In a clean deployment environment (no PyTorch needed):
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install torch==2.5.1 torchvision==0.20.1
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-For a Linux CPU-only install, use the CPU index in the Dockerfile. Default inference uses CPU for either architecture. First load/download is excluded from displayed latency. The cache holds one model to limit memory; switching architectures reloads it.
+Keep the exported ONNX/JSON pairs in models/. Only configured models are listed. Upload an image or capture a webcam snapshot. The app uses the same full-frame resize and ImageNet normalization as the training pipeline. Threshold is read from metadata; it is not reset to 0.5.
 
 ## 3. Deploy on Railway
 
-1. Extract this ZIP. Put its contents in a GitHub repository with Dockerfile and app.py at the repository root.
-2. Choose Railway **New Project → Deploy from GitHub repo**, and select that repository. If it is inside a larger repository, set the service root directory to this app's folder.
-3. Configure model access before the demo:
-   - Recommended: Railway service Variables → set `RESNET18_URL` to your trusted direct checkpoint URL. Add `VIT_B_16_URL` only if needed.
-   - Or include `models/resnet18.pt` in the repository deliberately using `git add -f models/resnet18.pt`. The .gitignore excludes weights by default. Check repository file-size rules first; the ViT checkpoint is too large for an ordinary GitHub file. Use URL hosting for ViT.
-4. Leave the start command unset. The Dockerfile calls `start.sh`, binds `0.0.0.0`, and reads Railway's `PORT` automatically.
-5. Deploy and open the service logs. The healthcheck verifies the web server, not model inference: without weights the site still loads and displays a setup message.
-6. In service Settings → Networking, generate a public domain. Open the HTTPS URL and allow browser camera permissions.
-7. Test one image, confirm the displayed saved threshold, then test webcam capture. Allow time for the first model download/load.
+1. Put these application files in a GitHub repository. Dockerfile must be at the configured Railway service root.
+2. Provide the exported model pair using ONE approach:
+   - Local files: include models/resnet18.onnx and models/resnet18.json in the deployed source. ONNX files are ignored by Git by default; deliberately add the ResNet file using `git add -f models/resnet18.onnx` if allowed by repository size rules. JSON is not ignored. ViT weights generally exceed ordinary GitHub per-file limits; use URLs.
+   - Remote files: set Railway variables `RESNET18_ONNX_URL` and `RESNET18_META_URL` to direct HTTPS download URLs for the matching pair. Optionally add `VIT_B_16_ONNX_URL` and `VIT_B_16_META_URL`. Only use files you control/trust. Ordinary sharing-page links do not work. Private signed URLs must remain valid on fresh deployments.
+3. Choose Deploy from GitHub repo. Leave the start command unset: Dockerfile calls start.sh, binding 0.0.0.0 and Railway's PORT.
+4. Generate a public HTTPS domain in service networking settings and permit webcam access in your browser.
+5. Run a real prediction after deployment. The web-server healthcheck does not validate model availability or inference.
 
-Use a service memory limit sufficient for PyTorch plus the selected model. ViT consumes considerably more memory than its weight file alone. Start with ResNet18, monitor service RAM, and increase resources if the process is killed. Concurrent requests are serialized per loaded model for predictable CPU inference. Hosting costs depend on Railway resources and usage.
+Optional variables: `ORT_NUM_THREADS=2`, `MODEL_DIR=models`. For persistent weights, mount a volume and point MODEL_DIR to a folder on it. Without persistence, remote models are downloaded again after filesystem resets. Start with ResNet18 and monitor Railway RAM before enabling ViT.
 
-Optional variables: `MODEL_DIR` (default models), `TORCH_NUM_THREADS` (default 2). For a volume, set MODEL_DIR to a folder on its mount path to retain downloaded weights across redeployments.
+The new ONNX edition does not use the previous RESNET18_URL/VIT_B_16_URL variables or .pt files. Use the four ONNX/META variable names above.
 
-## Included files
+## 4. Benchmark CPU inference
 
-- app.py — application UI and results dashboard
-- inference.py — checkpoint loading and real model inference
-- Dockerfile — Python 3.11 + CPU PyTorch build
-- start.sh — Railway port binding
-- railway.json — Docker build and Streamlit healthcheck
-- requirements.txt — pinned app dependencies
-- .streamlit/config.toml — light theme and upload limits
+Run each model in a fresh process on the same target machine:
 
-## Demo limits
+```bash
+python benchmark.py --model resnet18 --image /path/to/example.png --runs 100 --out resnet18_benchmark.json
+python benchmark.py --model vit_b_16 --image /path/to/example.png --runs 100 --out vit_b_16_benchmark.json
+```
 
-- Snapshot input only; no continuous streaming.
-- No face detector/cropping; blank or non-face images can receive predictions. Match the full-image training pipeline.
-- Binary genuine/spoof output, no attack subtype classification.
-- Spoof score is not a calibrated probability of authenticity.
-- Uploads are processed on the server, not only in the browser. App code does not save user images to disk or cache them globally. Use images with consent.
-- Results shown are the provided custom test-split results, not official benchmark or live-camera results.
+The script records mean/p95 inference time, preprocessing + inference time, loading time, and process RSS sampled every 10 ms. RSS is the whole process footprint, not model-only RAM; sampled peak can miss shorter spikes. Loading can include downloading if the weights were absent. Benchmarks exclude browser/network transfer and image decoding; image loading occurs before the timed loops. Warm-up: 10 calls; batch size: 1. No GPU/VRAM is used.
+
+For a PyTorch vs ONNX speed claim, also measure the original PyTorch model on identical hardware, thread counts, images and warm-up. The included benchmark only measures the ONNX deployment path.
+
+## What changed
+
+- ONNX Runtime CPU inference replaces PyTorch in the website.
+- Runtime graph optimizations are enabled with ORT_ENABLE_ALL on the deployment CPU.
+- Fixed batch 1 and 224x224 shape match the snapshot demo.
+- Preprocessing is implemented with Pillow/NumPy and checked against torchvision during export.
+- A one-entry Streamlit model cache limits retained sessions; switching models reloads the session.
+- Saved thresholds, float32 precision and the existing binary label convention are preserved.
+
+No hardware-specific pre-optimized graph is shipped; optimization runs when ONNX Runtime creates the session. This avoids assuming export-machine hardware matches Railway. FP32 ONNX conversion need not reduce the weight file size or improve latency. INT8 and FP16 are not enabled: they need separate compatibility, accuracy and performance validation.
+
+## App behavior and limits
+
+- Binary genuine/spoof predictions; no attack subtype classifier.
+- Full frame, no face detector; non-face inputs can still receive a prediction.
+- Webcam snapshots, not continuous video.
+- Spoof scores are not calibrated authenticity probabilities.
+- Images are sent to the server and processed in memory; application code does not save uploads to disk.
+- Results tab contains the previously reported custom test results from PyTorch. These are not newly measured ONNX metrics. Re-evaluate the exported model before reporting ONNX test performance.
 
 ## Verification status
 
-Python syntax and deployment configuration were checked during packaging. Real inference, Docker build, browser rendering, and Railway deployment require your checkpoints and an installed runtime; they have not been executed in the packaging environment.
+Package syntax/configuration and NumPy preprocessing smoke tests were checked. Trained .pt files were not provided, and PyTorch/ONNX Runtime are not installed in the packaging environment. Actual export, parity, latency, Docker build, and Railway inference remain to be run on your machine. The scripts perform those export checks when you run them; no fabricated benchmark results are included.
 
-References: https://docs.railway.com/deployments/start-command and https://docs.streamlit.io/deploy/tutorials/docker
+## Files
+
+- app.py: Streamlit interface and previously reported result tables
+- inference.py: secure-by-configuration model retrieval, hash validation, ONNX Runtime session and prediction
+- preprocess.py: shared Pillow/NumPy preprocessing and stable sigmoid
+- export_onnx.py: checkpoint-to-ONNX export and parity checks (training environment only)
+- benchmark.py: CPU latency and sampled process memory measurements
+- requirements.txt: Railway/runtime dependencies only
+- requirements-export.txt: additional export dependencies; torch/torchvision supplied by training environment
+- Dockerfile, railway.json, start.sh, .streamlit/config.toml: deployment configuration
+
+References: https://onnxruntime.ai/docs/performance/graph-optimizations and https://docs.railway.com/deployments/start-command

@@ -1,52 +1,59 @@
-import os,time,threading,urllib.request,tempfile
+import os,time,json,threading,urllib.request,tempfile,hashlib
 from pathlib import Path
-import torch
-from torchvision import models,transforms
-from PIL import ImageOps
+import onnxruntime as ort
+from preprocess import preprocess,sigmoid
 
-torch.set_num_threads(int(os.getenv('TORCH_NUM_THREADS','2')))
 ROOT=Path(os.getenv('MODEL_DIR','models'))
 
 def available(name):
-    return (ROOT/f'{name}.pt').is_file() or bool(os.getenv(name.upper()+'_URL'))
+    return all((ROOT/f'{name}.{ext}').is_file() or os.getenv(name.upper()+'_'+suffix) for ext,suffix in [('onnx','ONNX_URL'),('json','META_URL')])
+
+def fetch(name,ext,suffix,limit):
+    path=ROOT/f'{name}.{ext}'
+    if path.is_file(): return path
+    url=os.getenv(name.upper()+'_'+suffix)
+    if not url or not url.startswith('https://'): raise ValueError('Provide local model files or trusted HTTPS URLs')
+    ROOT.mkdir(parents=True,exist_ok=True)
+    fd,tmp=tempfile.mkstemp(dir=ROOT,suffix='.download'); os.close(fd)
+    try:
+        with urllib.request.urlopen(url,timeout=120) as r,open(tmp,'wb') as f:
+            total=0
+            while chunk:=r.read(1024*1024):
+                total+=len(chunk)
+                if total>limit: raise ValueError('Download exceeds size limit')
+                f.write(chunk)
+        os.replace(tmp,path)
+    finally: Path(tmp).unlink(missing_ok=True)
+    return path
+
+def digest(path):
+    h=hashlib.sha256()
+    with open(path,'rb') as f:
+        while chunk:=f.read(1024*1024): h.update(chunk)
+    return h.hexdigest()
 
 def load_model(name):
-    if name not in ['resnet18','vit_b_16']: raise ValueError('Unsupported architecture')
-    path=ROOT/f'{name}.pt'
-    if not path.is_file():
-        url=os.getenv(name.upper()+'_URL')
-        if not url: raise FileNotFoundError(f'Add {path} or configure {name.upper()}_URL.')
-        if not url.startswith('https://'): raise ValueError('Checkpoint URL must use HTTPS')
-        ROOT.mkdir(parents=True,exist_ok=True)
-        fd,tmp=tempfile.mkstemp(dir=ROOT,suffix='.download'); os.close(fd)
-        try:
-            with urllib.request.urlopen(url,timeout=120) as response,open(tmp,'wb') as out:
-                total=0
-                while chunk:=response.read(1024*1024):
-                    total+=len(chunk)
-                    if total>600*1024*1024: raise ValueError('Checkpoint exceeds 600 MiB')
-                    out.write(chunk)
-            os.replace(tmp,path)
-        finally:
-            Path(tmp).unlink(missing_ok=True)
-    ck=torch.load(path,map_location='cpu',weights_only=True)
-    architecture=ck.get('architecture','resnet18')
-    if architecture!=name: raise ValueError('Checkpoint architecture does not match selected model')
-    threshold=float(ck['threshold'])
-    if not 0<=threshold<=1: raise ValueError('Invalid checkpoint threshold')
-    if name=='resnet18':
-        net=models.resnet18(weights=None); net.fc=torch.nn.Linear(net.fc.in_features,1)
-    else:
-        net=models.vit_b_16(weights=None); net.heads.head=torch.nn.Linear(net.heads.head.in_features,1)
-    net.load_state_dict(ck['state']); net.eval()
-    return net,threshold,threading.Lock()
+    if name not in ['resnet18','vit_b_16']: raise ValueError('Unknown architecture')
+    meta=json.loads(fetch(name,'json','META_URL',1024*1024).read_text())
+    threshold=float(meta['threshold'])
+    if meta['architecture']!=name or not 0<=threshold<=1: raise ValueError('Invalid metadata')
+    if meta['preprocessing']!='pil_bilinear_imagenet_v1': raise ValueError('Unsupported preprocessing')
+    path=fetch(name,'onnx','ONNX_URL',600*1024*1024)
+    if digest(path)!=meta['sha256']: raise ValueError('Model and metadata hash mismatch')
+    opt=ort.SessionOptions()
+    opt.intra_op_num_threads=int(os.getenv('ORT_NUM_THREADS','2'))
+    opt.inter_op_num_threads=1
+    opt.graph_optimization_level=ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    session=ort.InferenceSession(str(path),sess_options=opt,providers=['CPUExecutionProvider'])
+    inp=session.get_inputs()[0]
+    if inp.shape!=[1,3,224,224] or inp.type!='tensor(float)': raise ValueError('Unexpected model input')
+    return session,threshold,threading.Lock()
 
-TF=transforms.Compose([transforms.Resize((224,224)),transforms.ToTensor(),transforms.Normalize([.485,.456,.406],[.229,.224,.225])])
 def predict(image,bundle):
-    net,threshold,lock=bundle
-    with lock,torch.inference_mode():
+    session,threshold,lock=bundle
+    with lock:
         start=time.perf_counter()
-        x=TF(ImageOps.exif_transpose(image).convert('RGB')).unsqueeze(0)
-        score=net(x).sigmoid().item()
+        x=preprocess(image)
+        score=float(sigmoid(session.run(None,{session.get_inputs()[0].name:x})[0]).item())
         ms=(time.perf_counter()-start)*1000
     return dict(prediction='Spoof' if score>=threshold else 'Genuine',spoof_score=score,threshold=threshold,processing_ms=ms)
