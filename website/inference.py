@@ -5,6 +5,21 @@ from preprocess import preprocess,sigmoid
 
 ROOT=Path(os.getenv('MODEL_DIR','models'))
 
+# Model id -> display info. Files: models/<id>.onnx + models/<id>.json,
+# or env vars <ID>_ONNX_URL + <ID>_META_URL (e.g. LCC_MOBILENET_V3_LARGE_ONNX_URL).
+MODELS={
+    'resnet18':dict(label='ResNet18',dataset='CelebA-Spoof'),
+    'vit_b_16':dict(label='ViT-B/16',dataset='CelebA-Spoof'),
+    'lcc_mobilenet_v3_large':dict(label='MobileNetV3-Large',dataset='LCC-FASD'),
+    'lcc_efficientnet_b0':dict(label='EfficientNet-B0',dataset='LCC-FASD'),
+    'lcc_resnet18':dict(label='ResNet18',dataset='LCC-FASD'),
+    'lcc_deit_tiny':dict(label='DeiT-Tiny',dataset='LCC-FASD'),
+    'lcc_custom_cnn':dict(label='Custom CNN',dataset='LCC-FASD'),
+}
+
+def display_name(name):
+    info=MODELS[name]; return f"{info['label']} · {info['dataset']}"
+
 def available(name):
     return all((ROOT/f'{name}.{ext}').is_file() or os.getenv(name.upper()+'_'+suffix) for ext,suffix in [('onnx','ONNX_URL'),('json','META_URL')])
 
@@ -39,10 +54,11 @@ def digest(path):
     return h.hexdigest()
 
 def load_model(name,emit=lambda message:None):
-    if name not in ['resnet18','vit_b_16']: raise ValueError('Unknown architecture')
+    if name not in MODELS: raise ValueError('Unknown architecture')
     meta=json.loads(fetch(name,'json','META_URL',1024*1024,emit).read_text())
     threshold=float(meta['threshold'])
-    if meta['architecture']!=name or not 0<=threshold<=1: raise ValueError('Invalid metadata')
+    # CelebA-Spoof JSONs have no model_id; their architecture is the id.
+    if meta.get('model_id',meta['architecture'])!=name or not 0<=threshold<=1: raise ValueError('Invalid metadata')
     emit('Metadata loaded; threshold validated')
     if meta['preprocessing']!='pil_bilinear_imagenet_v1': raise ValueError('Unsupported preprocessing')
     path=fetch(name,'onnx','ONNX_URL',600*1024*1024,emit)

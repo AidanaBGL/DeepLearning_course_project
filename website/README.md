@@ -1,3 +1,18 @@
+# Adding the LCC-FASD models (Diana's Colab runs)
+
+The app lists every model in `MODELS` (inference.py) that has an `<id>.onnx` + `<id>.json` pair in `models/` or `<ID>_ONNX_URL` + `<ID>_META_URL` variables. Unconfigured models are hidden. LCC-FASD ids: `lcc_mobilenet_v3_large`, `lcc_efficientnet_b0`, `lcc_resnet18`, `lcc_deit_tiny`, `lcc_custom_cnn`.
+
+1. Copy `export_onnx_lcc.py` to `MyDrive/FaceAntiSpoofing/` on Google Drive.
+2. In the training notebook, run sections 1–2 (mount Drive, unpack the dataset), then in a new cell:
+   ```
+   !pip -q install onnx onnxruntime onnxscript
+   !python /content/drive/MyDrive/FaceAntiSpoofing/export_onnx_lcc.py --runs /content/drive/MyDrive/FaceAntiSpoofing/runs_lcc_fasd --images /content/lcc_fasd_data/LCC_FASD_development --out /content/drive/MyDrive/FaceAntiSpoofing/onnx_lcc
+   ```
+   It checks ONNX vs PyTorch scores on 64 development images and refuses to write a model that disagrees.
+3. Download `onnx_lcc/` from Drive and put the files into `website/models/` (all are under 50 MB), commit and push; Railway rebuilds. Alternatively upload them to Hugging Face and set e.g. `LCC_MOBILENET_V3_LARGE_ONNX_URL` / `LCC_MOBILENET_V3_LARGE_META_URL` to the `/resolve/main/...` links. Google Drive share links do not work as download URLs.
+
+---
+
 # Reference-layout update
 
 Compact laboratory layout based on the supplied reference: input panel left, result panel right, suggested test cards and testing references below. Milk-beige background and orange submit button retained from the requested palette. Top links remain configurable through GITHUB_URL, HUGGINGFACE_URL, PRESENTATION_URL and PAPER_URL.

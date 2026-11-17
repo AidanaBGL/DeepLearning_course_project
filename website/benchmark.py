@@ -3,11 +3,11 @@ from pathlib import Path
 import numpy as np
 import psutil
 from PIL import Image
-from inference import load_model
+from inference import MODELS,load_model
 from preprocess import preprocess
 
 p=argparse.ArgumentParser()
-p.add_argument('--model',choices=['resnet18','vit_b_16'],default='resnet18')
+p.add_argument('--model',choices=list(MODELS),default='resnet18')
 p.add_argument('--image',required=True); p.add_argument('--runs',type=int,default=100)
 p.add_argument('--out',default='benchmark.json'); a=p.parse_args()
 if a.runs<1: p.error('--runs must be positive')
