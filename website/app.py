@@ -14,19 +14,23 @@ header[data-testid="stHeader"] {background:transparent}
 .topbar {display:flex;align-items:center;justify-content:space-between;gap:24px;padding:14px 0 25px;border-bottom:1px solid #ded7cc}
 .brand {font-size:22px;font-weight:800;letter-spacing:-.8px;white-space:nowrap}
 .nav {display:flex;gap:24px;flex-wrap:wrap}.nav a {color:#403d37;text-decoration:none;font-size:14px}.nav a:hover {color:#ce642b}.nav span {color:#a29a8e;font-size:14px}
-.hero {padding:65px 0 55px;max-width:850px}.eyebrow {font-size:12px;letter-spacing:2px;color:#9b795a;font-weight:600}
-.hero h1 {font-size:clamp(40px,6vw,76px);line-height:1.06;letter-spacing:-3px;font-weight:600;margin:18px 0 24px;color:#302d29}
-.hero p {font-size:18px;color:#82786d;max-width:570px;line-height:1.7}
+.hero {padding:30px 0 20px;max-width:100%}.eyebrow {font-size:12px;letter-spacing:2px;color:#9b795a;font-weight:600}
+.hero h1 {font-size:clamp(28px,3vw,40px);line-height:1.15;letter-spacing:-1.3px;font-weight:600;margin:8px 0 10px;color:#302d29}
+.hero p {font-size:18px;color:#82786d;max-width:900px;line-height:1.7}
 [data-testid="stVerticalBlockBorderWrapper"] {border-radius:20px!important}
 [data-testid="stFileUploader"] {background:#fffdf8;border:1px dashed #d8cbbb;border-radius:15px;padding:12px}
 .stButton button[kind="primary"] {background:#df7138;border:0;border-radius:12px;min-height:52px;font-size:17px;font-weight:600;color:white}
 .stButton button[kind="primary"]:hover {background:#c95d27;color:white}
 [data-testid="stMetric"] {background:#fffdf8;border:1px solid #e6ded2;border-radius:14px;padding:16px}
-.empty {min-height:280px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#9e9487;padding:28px}
+.empty {min-height:250px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#9e9487;padding:28px}
 .empty b {font-size:21px;color:#635b51;margin:12px}.symbol {font-size:50px;color:#c9bba9}
 .result {padding:22px;border-radius:16px;background:#eaf0e5;border:1px solid #cedbc2;margin:15px 0}.result.spoof {background:#fae9db;border-color:#ebc6a8}.result h2 {margin:5px 0;color:#302d29}.result small {letter-spacing:2px;color:#84715c}
 .foot {padding-top:25px;margin-top:30px;border-top:1px solid #ded7cc;color:#9d9284;font-size:12px}
-@media(max-width:700px){.topbar{align-items:flex-start;flex-direction:column}.hero{padding:40px 0}.block-container{padding:1rem}.nav{gap:16px}}
+@media(max-width:700px){.topbar{align-items:flex-start;flex-direction:column}.hero{padding:24px 0}.block-container{padding:1rem}.nav{gap:16px}}
+
+.scorebox {background:#f6eee3;border-radius:12px;text-align:center;padding:23px 12px;margin:12px 0 18px}.scorevalue {font-size:58px;font-weight:750;line-height:1.1;color:#bd5525;letter-spacing:-2px}.scorebox p {font-size:12px;color:#8b7b67;margin:12px 0 0}
+.samplecard {border:1px solid #e4dbcf;background:#fffdf8;border-radius:12px;padding:16px 18px;min-height:85px}.samplecard strong{display:block;color:#403a32;font-size:15px}.samplecard span{color:#8b8072;font-size:13px}.sectiontitle {font-size:18px;font-weight:650;margin-bottom:5px}
+a.resource {display:block;border:1px solid #e4dbcf;background:#fffdf8;border-radius:12px;padding:20px;color:#403a32;text-decoration:none;min-height:130px}a.resource strong{font-size:18px}a.resource p{font-size:14px;color:#8b8072;margin:7px 0}a.resource span{font-size:13px;color:#bd5525}
 </style>''',unsafe_allow_html=True)
 links=[]
 for label,key in [('GitHub','GITHUB_URL'),('Hugging Face','HUGGINGFACE_URL'),('Presentation','PRESENTATION_URL'),('Paper','PAPER_URL')]:
@@ -36,7 +40,7 @@ for label,key in [('GitHub','GITHUB_URL'),('Hugging Face','HUGGINGFACE_URL'),('P
         links.append(f'<a href="{html.escape(url,quote=True)}" target="_blank" rel="noopener noreferrer">{label} ↗</a>')
     else: links.append(f'<span title="Link coming soon">{label}</span>')
 st.markdown('<div class="topbar"><div class="brand">FACE ANTISPOOF<span style="color:#df7138">.</span></div><nav class="nav">' + ''.join(links)+'</nav></div>',unsafe_allow_html=True)
-st.markdown('''<section class="hero"><div class="eyebrow">FACE PRESENTATION ATTACK DETECTION</div><h1>A face can look real.<br>Let’s take a closer look.</h1><p>Upload a photo or take a snapshot. Test whether a face appears genuine or presented through a print or screen.</p></section>''',unsafe_allow_html=True)
+st.markdown('''<section class="hero"><div class="eyebrow">FACE PRESENTATION ATTACK DETECTION</div><h1>Test a face. Inspect the result.</h1><p>Upload a sample or capture a webcam frame to detect presentation attacks.</p></section>''',unsafe_allow_html=True)
 
 @st.cache_resource(max_entries=1)
 def cached_model(name,_emit): return load_model(name,emit=_emit)
@@ -44,9 +48,9 @@ def cached_model(name,_emit): return load_model(name,emit=_emit)
 for key,default in [('last_result',None),('events',[]),('error',None),('input_key',None)]:
     if key not in st.session_state: st.session_state[key]=default
 
-left,right=st.columns([1.1,1],gap='large')
-with left:
-    st.subheader('01 / Add your image')
+left,right=st.columns([1.65,1],gap='medium')
+with left,st.container(border=True):
+    st.subheader('Input sample')
     name=st.selectbox('Model',['resnet18','vit_b_16'],format_func=lambda n:('ResNet18' if n=='resnet18' else 'ViT-B/16')+('' if available(n) else ' · not configured'))
     mode=st.radio('Input',['Upload image','Webcam snapshot'],horizontal=True,label_visibility='collapsed')
     f=st.file_uploader('Upload image',type=['jpg','jpeg','png','webp'],help='Maximum 10 MB and 20 megapixels.') if mode=='Upload image' else st.camera_input('Take a snapshot')
@@ -62,7 +66,7 @@ with left:
                 with Image.open(io.BytesIO(raw)) as im:
                     if im.width*im.height>20_000_000: raise ValueError('Image exceeds 20 megapixels')
                     im.load(); image=ImageOps.exif_transpose(im).convert('RGB')
-            st.image(image,use_container_width=True)
+            preview=image.copy(); preview.thumbnail((820,390)); st.image(preview,use_container_width=True)
             st.caption(f'Ready · {image.width} × {image.height} px')
         except Exception as exc:
             st.error('Cannot read this image. Choose a valid JPG, PNG or WEBP under 10 MB and 20 megapixels.')
@@ -70,8 +74,8 @@ with left:
     if not available(name): st.warning('This model is not configured. Open Setup details below.')
     send=st.button('Отправить →',type='primary',use_container_width=True,disabled=image is None or not available(name))
     if image is None: st.caption('Upload an image or take a snapshot to enable the button.')
-with right:
-    st.subheader('02 / Your result')
+with right,st.container(border=True):
+    st.subheader('Detection result')
     result_slot=st.empty()
     status_slot=st.empty()
 
@@ -109,8 +113,7 @@ with result_slot.container():
         spoof=result['prediction']=='Spoof'; score=result['spoof_score']
         st.markdown(f'<div class="result {"spoof" if spoof else ""}"><small>MODEL PREDICTION</small><h2>{"Spoof detected" if spoof else "Genuine face"}</h2><div>{"Possible presentation attack" if spoof else "Classified as a genuine presentation"}</div></div>',unsafe_allow_html=True)
         # Show the actual output score, not an invented confidence percentage.
-        st.metric('Spoof score',f'{score*100:.2f}%')
-        st.progress(max(0.,min(1.,score)))
+        st.markdown(f'<div class="scorebox"><div class="scorevalue">{score*100:.2f}%</div><strong>Spoof score</strong><p>A model score, not a guarantee.</p></div>',unsafe_allow_html=True)
         st.caption('Model score, not a calibrated confidence probability. Prediction uses the saved threshold, which may differ from 50%.')
         a,b=st.columns(2)
         a.metric('Decision threshold',f"{result['threshold']*100:.2f}%")
@@ -120,6 +123,24 @@ with result_slot.container():
     elif st.session_state.error: st.error(st.session_state.error)
     else: st.markdown('<div class="empty"><div class="symbol">◌</div><b>Your result appears here</b><span>Add an image and press Отправить.<br>Each processing step will be shown below.</span></div>',unsafe_allow_html=True)
 
+st.markdown('<div style="height:16px"></div>',unsafe_allow_html=True)
+with st.container(border=True):
+    cards=st.columns([1.15,1,1,1])
+    with cards[0]:
+        st.markdown('<div class="sectiontitle">Suggested tests</div>',unsafe_allow_html=True)
+        st.caption("Try different inputs to explore the model’s behavior.")
+    for col,title,desc in zip(cards[1:],['Genuine face','Printed photo','Screen replay'],['A live person','A face printed on paper','A face shown on a display']):
+        with col: st.markdown(f'<div class="samplecard"><strong>{title}</strong><span>{desc}</span></div>',unsafe_allow_html=True)
+st.markdown('<div style="height:12px"></div>',unsafe_allow_html=True)
+a,b,c=st.columns([1,1,1])
+with a:
+    st.markdown('<div class="sectiontitle">Testing references</div>',unsafe_allow_html=True)
+    st.caption('Learn about presentation attack detection and evaluation methods.')
+with b:
+    st.markdown('<a class="resource" href="https://www.ibeta.com/biometric-testing/" target="_blank" rel="noopener noreferrer"><strong>iBeta</strong><p>Independent PAD testing</p><span>View methodology ↗</span></a>',unsafe_allow_html=True)
+with c:
+    st.markdown('<a class="resource" href="https://pages.nist.gov/frvt/html/frvt_pad.html" target="_blank" rel="noopener noreferrer"><strong>NIST FATE PAD</strong><p>Algorithm evaluation reports</p><span>Explore research ↗</span></a>',unsafe_allow_html=True)
+st.caption('Reference resources only. This course prototype has not been independently evaluated or certified.')
 with st.expander('Processing log',expanded=bool(st.session_state.error)):
     st.code('\n'.join(st.session_state.events) or 'No request yet. Choose an image and press Отправить.',language='text')
 with st.expander('Setup details'):

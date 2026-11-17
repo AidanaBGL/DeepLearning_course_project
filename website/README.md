@@ -1,3 +1,15 @@
+# Reference-layout update
+
+Compact laboratory layout based on the supplied reference: input panel left, result panel right, suggested test cards and testing references below. Milk-beige background and orange submit button retained from the requested palette. Top links remain configurable through GITHUB_URL, HUGGINGFACE_URL, PRESENTATION_URL and PAPER_URL.
+
+Replace app.py to update an existing cream/logs ONNX deployment. If updating an older deployment, replace the full app files while retaining your models and hosting variables. Rebuild after updating dependencies.
+
+This is an actual inference interface, not a reproduction of the illustrative screenshot's result. No face bounding box is drawn because no detector is implemented. Browser-selected webcam snapshots remain supported; a custom camera-device selector and continuous-stream indicator are not implemented. The percentage is the actual sigmoid spoof score and not calibrated confidence. Metadata/hash errors still block inference and remain visible in the processing log; this redesign does not fix mismatched model files.
+
+Checked: Python syntax and configuration parsing. Not checked here: live browser layout and inference with your weights.
+
+---
+
 # FACE ANTISPOOF — cream UI + processing logs
 
 ## Update your deployed site
