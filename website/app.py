@@ -2,7 +2,7 @@ import io,json,os,time,uuid,hashlib,warnings,logging,html
 from urllib.parse import urlparse
 import streamlit as st
 from PIL import Image,ImageOps
-from inference import available,load_model,predict
+from inference import MODELS,available,display_name,load_model,predict
 
 logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(name)s %(message)s')
 log=logging.getLogger('face_antispoof')
@@ -51,7 +51,9 @@ for key,default in [('last_result',None),('events',[]),('error',None),('input_ke
 left,right=st.columns([1.65,1],gap='medium')
 with left,st.container(border=True):
     st.subheader('Input sample')
-    name=st.selectbox('Model',['resnet18','vit_b_16'],format_func=lambda n:('ResNet18' if n=='resnet18' else 'ViT-B/16')+('' if available(n) else ' · not configured'))
+    # List only configured models; if none are configured, list all so the setup warning is visible.
+    choices=[n for n in MODELS if available(n)] or list(MODELS)
+    name=st.selectbox('Model',choices,format_func=lambda n:display_name(n)+('' if available(n) else ' · not configured'))
     mode=st.radio('Input',['Upload image','Webcam snapshot'],horizontal=True,label_visibility='collapsed')
     f=st.file_uploader('Upload image',type=['jpg','jpeg','png','webp'],help='Maximum 10 MB and 20 megapixels.') if mode=='Upload image' else st.camera_input('Take a snapshot')
     image=None; raw=f.getvalue() if f else b''
@@ -118,7 +120,7 @@ with result_slot.container():
         a,b=st.columns(2)
         a.metric('Decision threshold',f"{result['threshold']*100:.2f}%")
         b.metric('Processing',f"{result['processing_ms']:.0f} ms")
-        st.caption(f"Total request: {result['total_ms']/1000:.2f} s · {result['model']} · ID {result['request_id']}")
+        st.caption(f"Total request: {result['total_ms']/1000:.2f} s · {display_name(result['model'])} · ID {result['request_id']}")
         st.download_button('Download result',json.dumps(result,indent=2),'prediction.json','application/json')
     elif st.session_state.error: st.error(st.session_state.error)
     else: st.markdown('<div class="empty"><div class="symbol">◌</div><b>Your result appears here</b><span>Add an image and press Отправить.<br>Each processing step will be shown below.</span></div>',unsafe_allow_html=True)
@@ -144,9 +146,9 @@ st.caption('Reference resources only. This course prototype has not been indepen
 with st.expander('Processing log',expanded=bool(st.session_state.error)):
     st.code('\n'.join(st.session_state.events) or 'No request yet. Choose an image and press Отправить.',language='text')
 with st.expander('Setup details'):
-    st.write({n:('Configured — download/inference not yet verified' if available(n) else 'Not configured') for n in ['resnet18','vit_b_16']})
-    st.caption('ResNet18 settings are built into the app: only its ONNX file or URL is required. ViT still requires matching ONNX and JSON files. First inference initializes ONNX Runtime; subsequent requests reuse the session.')
-    st.code('RESNET18_ONNX_URL\nVIT_B_16_ONNX_URL\nVIT_B_16_META_URL')
+    st.write({n:('Configured — download/inference not yet verified' if available(n) else 'Not configured') for n in MODELS})
+    st.caption('ResNet18 (CelebA-Spoof) settings are built into the app: only its ONNX file or URL is required. Other models need matching local .onnx + .json files or model URL variables. First inference initializes ONNX Runtime; subsequent requests reuse the session.')
+    st.code('\n'.join(f'{n.upper()}_{s}' for n in MODELS for s in (['ONNX_URL'] if n=='resnet18' else ['ONNX_URL','META_URL'])))
     st.caption('Navigation links: GITHUB_URL, HUGGINGFACE_URL, PRESENTATION_URL, PAPER_URL. Missing links stay gray until configured.')
 with st.expander('Research results & limitations'):
     st.markdown('''| Model | AUC | APCER | BPCER | ACER |
@@ -155,6 +157,16 @@ with st.expander('Research results & limitations'):
 | ViT-B/16 | 0.99421 | 4.14% | 2.33% | 3.24% |
 
 Previously measured PyTorch results on a custom 5,200-image CelebA-Spoof test subset. Not official benchmark or live-camera results.
+
+| Model (LCC-FASD) | AUC | APCER | BPCER | ACER |
+|---|---:|---:|---:|---:|
+| MobileNetV3-Large | 0.9932 | 2.39% | 8.92% | 5.66% |
+| EfficientNet-B0 | 0.9817 | 3.36% | 10.51% | 6.93% |
+| ResNet18 | 0.9661 | 2.08% | 14.97% | 8.52% |
+| DeiT-Tiny | 0.9694 | 4.69% | 15.92% | 10.31% |
+| Custom CNN | 0.9005 | 18.58% | 13.69% | 16.14% |
+
+PyTorch results on the official LCC-FASD evaluation split (7,580 images: 314 real, 7,266 spoof); threshold chosen on the development split. Models trained on different datasets are not directly comparable.
 
 Full-frame binary classification; no face detector or attack subtype prediction. Non-face images can receive predictions. Webcam mode takes snapshots, not continuous video. Scores are not calibrated probabilities. Uploads are processed in server memory and not saved by the application.''')
 st.markdown('<div class="foot">Aidana · Diana · Temirlan &nbsp; / &nbsp; Research prototype · ONNX Runtime CPU</div>',unsafe_allow_html=True)
