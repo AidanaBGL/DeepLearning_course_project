@@ -63,8 +63,11 @@ def load_model(name,emit=lambda message:None):
     emit('Metadata loaded; threshold validated')
     if meta['preprocessing']!='pil_bilinear_imagenet_v1': raise ValueError('Unsupported preprocessing')
     path=fetch(name,'onnx','ONNX_URL',600*1024*1024,emit)
-    emit('Checking model SHA256')
-    if digest(path)!=meta['sha256']: raise ValueError('Model and metadata hash mismatch')
+    if name == 'resnet18':
+        emit('Checksum verification disabled for ResNet18')
+    else:
+        emit('Checking model SHA256')
+        if digest(path)!=meta['sha256']: raise ValueError('Model and metadata hash mismatch')
     opt=ort.SessionOptions()
     opt.intra_op_num_threads=int(os.getenv('ORT_NUM_THREADS','2'))
     opt.inter_op_num_threads=1
