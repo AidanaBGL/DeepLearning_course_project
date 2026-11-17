@@ -145,8 +145,8 @@ with st.expander('Processing log',expanded=bool(st.session_state.error)):
     st.code('\n'.join(st.session_state.events) or 'No request yet. Choose an image and press Отправить.',language='text')
 with st.expander('Setup details'):
     st.write({n:('Configured — download/inference not yet verified' if available(n) else 'Not configured') for n in ['resnet18','vit_b_16']})
-    st.caption('Provide matching local .onnx + .json files or model URL variables. First inference may download weights and initialize ONNX Runtime. Subsequent requests reuse the session.')
-    st.code('RESNET18_ONNX_URL\nRESNET18_META_URL\nVIT_B_16_ONNX_URL\nVIT_B_16_META_URL')
+    st.caption('ResNet18 settings are built into the app: only its ONNX file or URL is required. ViT still requires matching ONNX and JSON files. First inference initializes ONNX Runtime; subsequent requests reuse the session.')
+    st.code('RESNET18_ONNX_URL\nVIT_B_16_ONNX_URL\nVIT_B_16_META_URL')
     st.caption('Navigation links: GITHUB_URL, HUGGINGFACE_URL, PRESENTATION_URL, PAPER_URL. Missing links stay gray until configured.')
 with st.expander('Research results & limitations'):
     st.markdown('''| Model | AUC | APCER | BPCER | ACER |
