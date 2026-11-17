@@ -1,0 +1,19 @@
+{
+  "architecture": "resnet18",
+  "threshold": 0.1945590376853943,
+  "preprocessing": "pil_bilinear_imagenet_v1",
+  "sha256": "f0968bce5cab45b568bc5655f56590efe4e9329000f23bc1ad22aa785f470fe6",
+  "input_shape": [
+    1,
+    3,
+    224,
+    224
+  ],
+  "output": "logits",
+  "precision": "float32",
+  "validation_samples": 64,
+  "max_score_error": 1.0692173313953113e-06,
+  "prediction_changes": 0,
+  "torch_version": "2.11.0+cu126",
+  "ort_version": "1.31.1"
+}
