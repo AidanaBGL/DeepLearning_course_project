@@ -125,24 +125,6 @@ with result_slot.container():
     elif st.session_state.error: st.error(st.session_state.error)
     else: st.markdown('<div class="empty"><div class="symbol">◌</div><b>Your result appears here</b><span>Add an image and press Отправить.<br>Each processing step will be shown below.</span></div>',unsafe_allow_html=True)
 
-st.markdown('<div style="height:16px"></div>',unsafe_allow_html=True)
-with st.container(border=True):
-    cards=st.columns([1.15,1,1,1])
-    with cards[0]:
-        st.markdown('<div class="sectiontitle">Suggested tests</div>',unsafe_allow_html=True)
-        st.caption("Try different inputs to explore the model’s behavior.")
-    for col,title,desc in zip(cards[1:],['Genuine face','Printed photo','Screen replay'],['A live person','A face printed on paper','A face shown on a display']):
-        with col: st.markdown(f'<div class="samplecard"><strong>{title}</strong><span>{desc}</span></div>',unsafe_allow_html=True)
-st.markdown('<div style="height:12px"></div>',unsafe_allow_html=True)
-a,b,c=st.columns([1,1,1])
-with a:
-    st.markdown('<div class="sectiontitle">Testing references</div>',unsafe_allow_html=True)
-    st.caption('Learn about presentation attack detection and evaluation methods.')
-with b:
-    st.markdown('<a class="resource" href="https://www.ibeta.com/biometric-testing/" target="_blank" rel="noopener noreferrer"><strong>iBeta</strong><p>Independent PAD testing</p><span>View methodology ↗</span></a>',unsafe_allow_html=True)
-with c:
-    st.markdown('<a class="resource" href="https://pages.nist.gov/frvt/html/frvt_pad.html" target="_blank" rel="noopener noreferrer"><strong>NIST FATE PAD</strong><p>Algorithm evaluation reports</p><span>Explore research ↗</span></a>',unsafe_allow_html=True)
-st.caption('Reference resources only. This course prototype has not been independently evaluated or certified.')
 with st.expander('Processing log',expanded=bool(st.session_state.error)):
     st.code('\n'.join(st.session_state.events) or 'No request yet. Choose an image and press Отправить.',language='text')
 with st.expander('Setup details'):

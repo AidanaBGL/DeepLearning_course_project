@@ -3,7 +3,14 @@ from pathlib import Path
 import onnxruntime as ort
 from preprocess import preprocess,sigmoid
 
-ROOT=Path(os.getenv('MODEL_DIR','models'))
+BUNDLED_ROOT=Path(__file__).resolve().parent/'models'
+ROOT=Path(os.getenv('MODEL_DIR') or BUNDLED_ROOT).expanduser().resolve()
+
+def local_file(name,ext):
+    for folder in (ROOT,BUNDLED_ROOT):
+        path=folder/f'{name}.{ext}'
+        if path.is_file(): return path
+    return None
 
 # Model id -> display info. Files: models/<id>.onnx + models/<id>.json,
 # or env vars <ID>_ONNX_URL + <ID>_META_URL (e.g. LCC_MOBILENET_V3_LARGE_ONNX_URL).
@@ -33,14 +40,15 @@ BUILTIN_META = {
 
 def available(name):
     if name in BUILTIN_META:
-        return bool((ROOT/f'{name}.onnx').is_file() or os.getenv(name.upper()+'_ONNX_URL'))
-    return all((ROOT/f'{name}.{ext}').is_file() or os.getenv(name.upper()+'_'+suffix) for ext,suffix in [('onnx','ONNX_URL'),('json','META_URL')])
+        return bool(local_file(name,'onnx') is not None or os.getenv(name.upper()+'_ONNX_URL'))
+    return all(local_file(name,ext) is not None or os.getenv(name.upper()+'_'+suffix) for ext,suffix in [('onnx','ONNX_URL'),('json','META_URL')])
 
 def fetch(name,ext,suffix,limit,emit=lambda message:None):
+    local=local_file(name,ext)
+    if local is not None:
+        emit(f'Found local {ext.upper()} file in {local.parent}')
+        return local
     path=ROOT/f'{name}.{ext}'
-    if path.is_file():
-        emit(f'Found local {ext.upper()} file')
-        return path
     url=os.getenv(name.upper()+'_'+suffix)
     if not url or not url.startswith('https://'): raise ValueError('Provide local model files or trusted HTTPS URLs')
     ROOT.mkdir(parents=True,exist_ok=True)
